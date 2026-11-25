@@ -8,7 +8,7 @@
 
 #### 🚧 Mantis is currently evolving!
 
-Mantis-plex is being reorganized into four complementary packages: Mantis-plex, Mantis-quant, Mantis-surf, and Mantis-seg, each providing modular analysis tools organized by functionality. 
+Mantis-plex is being reorganized into four complementary packages: Mantis-plex, Mantis-quant, Mantis-surf, and Mantis-seg, each providing modular analysis tools organized by functionality.
 
 <img width="4893" height="2245" alt="Asset 2@600x" src="https://github.com/user-attachments/assets/0fa294b0-90d4-4990-b046-5bbe91dbb54e" />
 
@@ -29,7 +29,7 @@ pip install .
 To include optional dependencies for spherical harmonics and warpfield registration:
 
 ```bash
-pip install ".[spherical-harmonics,warpfield]"
+pip install ".[warpfield]"
 ```
 
 ## Fractal workflow steps
