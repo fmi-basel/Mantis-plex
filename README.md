@@ -9,48 +9,51 @@
 
 ### 1. Object linking across imaging rounds
 
-The `calculate_object_linking` task establishes correspondences between segmented objects across imaging rounds. The `calculate_linking_consensus` task identifies consistent object correspondences across multiple rounds, and the `relabel_by_linking_consensus` task assigns consistent labels to corresponding objects.
+This series of tasks is used to identify and link the same individual objects across multiplexing rounds by assigning them a common consensus label ID. Objects are assumed to have been segmented in each round. Corresponding objects are identified based on pixel overlap (e.g. > 20%) after XY shift correction of well pairs. The `calculate_object_linking` task establishes pairwise links between imaging rounds, the `calculate_linking_consensus` task assigns a common consensus label ID to linked objects across all rounds, and the `relabel_by_linking_consensus` task updates the label images using these consensus IDs.
 
-This enables individual objects, such as organoids or tissue regions, to be identified and processed across multiple rounds of multiplexed imaging.
 
-- **Input:** Segmentation label images and corresponding ROI tables from multiple imaging rounds.
+<img width="1392" height="324" alt="Screenshot 2026-11-27 at 11 58 44" src="https://github.com/user-attachments/assets/2670b0c9-44eb-483c-b746-b6a33c847039" />
+
+
+- **Input:** 2D segmentation label images and their corresponding ROI tables from multiple imaging rounds.
 - **Output:** Object linking tables and consistently relabeled segmentation images across imaging rounds.
 
-### 2. Rigid image registration
+### 2. Rigid label image registration
 
-The `calculate_2d_rigid_shift`, `shift_by_rigid_shift`, and `shift_by_shift` tasks calculate and apply translational shifts to align microscopy images across imaging rounds.
+This series of tasks is used to apply a reference segmentation to multiple moving rounds via a rigid transformation. This allows a single 3D segmentation of the reference round to be propagated across the dataset. Objects are assumed to have been segmented in 2D in each round and linked. The `calculate_2d_rigid_shift` task estimates the 2D rigid transformation (XY translation and rotation) between point clouds of linked object centroids, and the `shift_by_rigid_shift` task applies this transform to selected 3D or 2D reference label images that is saved in the moving round.
 
-- **Input:** Reference and moving microscopy images or previously calculated shifts.
-- **Output:** Registration shifts and spatially aligned images.
+<img width="1390" height="513" alt="Screenshot 2026-11-27 at 11 58 55" src="https://github.com/user-attachments/assets/2ff7cbda-911f-45e5-845e-5b4d7bb30647" />
+
+
+- **Input:** 2D linked segmentation label images from multiple imaging rounds.
+- **Output:** Registration shifts and transformed 3D reference segmentation in moving rounds.
 
 ### 3. Non-rigid image registration
 
-The `calculate_warpfield_registration` and `apply_warpfield_registration` tasks estimate and apply deformation fields to align volumetric microscopy images across imaging rounds, accounting for local tissue deformations that cannot be corrected by rigid registration alone.
+The `calculate_warpfield_registration` and `apply_warpfield_registration` tasks estimate and apply deformation fields to align volumetric microscopy images across imaging rounds, accounting for local tissue deformations that cannot be corrected by rigid registration alone. [Warpfield](https://github.com/danionella/warpfield/tree/main) registration is calculated using raw 3D images of a marker common to both rounds (e.g. DAPI), and the resulting deformation fields are applied to all selected channels of the moving round. Registration is run pairwise on individual objects that are assumed to have been linked and registered via rigid label image registration. 
 
-- **Input:** Reference and moving 3D microscopy images and corresponding ROIs.
-- **Output:** Deformation fields and non-rigidly registered images.
+<img width="1393" height="359" alt="Screenshot 2026-11-27 at 11 59 08" src="https://github.com/user-attachments/assets/d2b98b0f-9fc5-42d9-a2ad-844b40dcc32d" />
 
-### 4. Post-registration processing
 
-The `post_registration_cleanup`, `detect_clipped_rois_across_rounds`, and `copy_data_from_ref_to_moving_rounds` tasks support the preparation of registered multiplexed datasets for downstream analysis. These tasks enable cleanup of registered data, identification of ROIs that are clipped in one or more imaging rounds, and propagation of reference-round data to corresponding moving rounds.
+- **Input:** Reference and moving 3D channel and label images, with corresponding objects extracted using their respective ROI tables.
+- **Output:** Deformation fields per object pair and a registered 3D OME-Zarr image for each moving round, aligned to the coordinate system of the reference round to enable direct visual overlays.
 
-- **Input:** Registered multiplexed OME-Zarr datasets and corresponding segmentation label images and ROI tables.
-- **Output:** Processed and consistently annotated multiplexed datasets for downstream analysis.
+Next, the `post_registration_cleanup`, `detect_clipped_rois_across_rounds`, and `copy_data_from_ref_to_moving_rounds` tasks support cleanup of registered data, identification of ROIs that are clipped in one or more imaging rounds, and propagation of reference-round data to corresponding moving rounds.
 
-### 5. Z-illumination correction
+### 4. Z-illumination correction
 
-The `calculate_z_illumination_correction` and `apply_z_illumination_correction` tasks estimate and correct depth-dependent intensity variations in volumetric microscopy images, improving intensity consistency along the Z-axis.
+The `calculate_z_illumination_correction` and `apply_z_illumination_correction` tasks estimate and correct depth-dependent intensity variations in volumetric microscopy images. Intensity decay along the Z-axis is estimated using a uniform stain (e.g. NHS ester) in a given round, and the resulting correction is applied to selected channels of other rounds. Correction is calculated for individual objects, which are assumed to have been linked and registered via rigid label image registration. 
 
-- **Input:** 3D microscopy images from an OME-Zarr dataset.
-- **Output:** Z-illumination correction profiles and intensity-corrected images.
+<img width="1393" height="556" alt="Screenshot 2026-11-27 at 11 59 28" src="https://github.com/user-attachments/assets/717e54ba-8ab0-45b8-adaa-fea0e86b4bd7" />
 
-### 6. PlatyMatch registration
 
-The `calculate_platymatch_registration` task uses [PlatyMatch](https://github.com/juglab/PlatyMatch) to estimate spatial transformations between imaging rounds based on the spatial organization of segmented objects, such as nuclei. This enables object-based registration of individual 3D tissue regions across imaging rounds.
+- **Input:** 3D channel image (uniform stain), with objects segmented and linked across rounds.
+- **Output:** Z-illumination correction profiles per object and corrected 3D OME-Zarr images for selected rounds, with each object corrected by its corresponding correction profile. 
 
-- **Input:** Segmented objects and their spatial coordinates in reference and moving imaging rounds.
-- **Output:** Object-based registration transformations.
-  
+### Legacy tasks
+
+The `calculate_platymatch_registration` task uses [PlatyMatch](https://github.com/juglab/PlatyMatch) for 3D point cloud-based registration of imaging rounds using child object segmentation (e.g. nuclear or cell centroids). This task is retained for legacy purposes but is no longer actively maintained or recommended for new workflows.
+
 ## Installation
 
 ### From source
