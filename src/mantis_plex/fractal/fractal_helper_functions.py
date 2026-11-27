@@ -41,14 +41,6 @@ from fractal_tasks_core.tasks._zarr_utils import _update_well_metadata
 from fractal_tasks_core.utils import _split_well_path_image_path
 from zarr.errors import ArrayNotFoundError
 
-from mantis_plex.meshing.MeshFunctions import (
-    downsample_mesh,
-    export_stl_polydata,
-    export_vtk_polydata,
-    labels_to_mesh,
-    upsample_mesh,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -629,83 +621,6 @@ def save_zchunk_to_label(
     return
 
 
-def compute_and_save_mesh(
-    label_image,
-    label_str,
-    pixmeta,
-    polynomial_degree,
-    passband,
-    feature_angle,
-    target_reduction,
-    smoothing_iterations,
-    zarr_url,
-    mesh_folder_name,
-    object_name,
-    save_as_stl,
-    resample_mesh_to_target_point_count,
-    target_point_count,
-):
-    # Make mesh with vtkDiscreteFlyingEdges3D algorithm
-    # Set spacing to ome-zarr pixel spacing metadata. Mesh will be in physical units (um)
-    spacing = tuple(np.array(pixmeta))  # z,y,x e.g. (0.6, 0.216, 0.216)
-
-    # Pad border with 0 so that the mesh forms a manifold
-    label_image_padded = np.pad(label_image, 1)
-
-    # Calculate mesh
-    mesh_polydata = labels_to_mesh(
-        label_image_padded,
-        spacing,
-        polynomial_degree=polynomial_degree,
-        pass_band_param=passband,
-        feature_angle=feature_angle,
-        target_reduction=target_reduction,
-        smoothing_iterations=smoothing_iterations,
-        margin=5,
-        show_progress=False,
-    )
-
-    number_of_points = mesh_polydata.GetNumberOfPoints()
-
-    logger.info(
-        f"Successfully generated surface mesh for object label {label_str} with {number_of_points} points "
-        f"and {mesh_polydata.GetNumberOfCells()} triangles."
-    )
-
-    if resample_mesh_to_target_point_count:
-        # Decide whether to upsample or downsample
-        if number_of_points < target_point_count:
-            # Upsampling with Loop Subdivision and Quadric Decimation
-            mesh_polydata = upsample_mesh(mesh_polydata, target_point_count)
-            logger.info(
-                f"Upsampled mesh to {mesh_polydata.GetNumberOfPoints()} points "
-                f"and {mesh_polydata.GetNumberOfCells()} triangles."
-            )
-        elif number_of_points > target_point_count:
-            # Downsampling with Quadric Decimation
-            mesh_polydata = downsample_mesh(mesh_polydata, target_point_count)
-            logger.info(
-                f"Downsampled mesh to {mesh_polydata.GetNumberOfPoints()} points "
-                f"and {mesh_polydata.GetNumberOfCells()} triangles."
-            )
-
-        else:
-            logger.info("No resampling needed")
-
-    # Save mesh
-    save_transform_path = f"{zarr_url}/meshes/{mesh_folder_name}"
-    os.makedirs(save_transform_path, exist_ok=True)
-
-    if save_as_stl is True:
-        save_name = f"{int(object_name)}.stl"  # save name is the parent label id
-        export_stl_polydata(os.path.join(save_transform_path, save_name), mesh_polydata)
-    # Otherwise save as .vtp
-    else:
-        save_name = f"{int(object_name)}.vtp"  # save name is the parent label id
-        export_vtk_polydata(os.path.join(save_transform_path, save_name), mesh_polydata)
-    return mesh_polydata
-
-
 def load_channel_image(
     channel_input_model,
     dask_array,
@@ -1000,21 +915,6 @@ def correct_label_column(adata_roi_table, column_name="label"):
                 f" missing in {adata_roi_table.obs.columns=}"
             )
     return adata_roi_table
-
-
-def clear_mesh_folder(mesh_folder_name, zarr_url):
-    folder_path = f"{zarr_url}/meshes/{mesh_folder_name}"
-
-    if os.path.exists(folder_path) and os.path.isdir(folder_path):
-        # Loop through the contents and remove them
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)  # remove file or symbolic link
-            except Exception as e:
-                logger.warning(f"Failed to delete {file_path}. Reason: {e}")
-    return
 
 
 # TODO: combine with clear_mesh_folder to make general function

@@ -9,6 +9,7 @@ repos:
     rev: 7.2.0
     hooks:
       - id: flake8
+        exclude: ^src/mantis_plex/platymatch/platymatch/
         args: [ "--ignore=E203,E501,W504,W503,E731,C901", "--max-complexity=15"]
         additional_dependencies: [ flake8-typing-imports==1.16.0 ]
   - repo: https://github.com/PyCQA/autoflake
